@@ -35,9 +35,7 @@ $lang['Ldap_Login Test'] = 'Ldap Oturum Açma Test';
 $lang['Ldap_Login configuration'] = 'Ldap Oturum Açma Yapılandırma';
 $lang['Ldap server host connection'] = 'LDAP sunucu bağlantısı';
 $lang['Ldap server host'] = 'LDAP sunucusu barındırıcı';
-$lang['Ldap filter :'] = 'LDAP filtresi:';
 $lang['Ldap port'] = 'LDAP portu';
-$lang['Ldap attributes'] = 'LDAP öz nitelikleri';
 $lang['Bind password'] = 'Bağlı şifre';
 $lang['Attribute corresponding to the user name'] = 'Kullanıcı adına karşılık gelen öz nitelik';
 $lang['All LDAP users can use their ldap password everywhere on piwigo if needed.'] = 'Gerektiğinde tüm LDAP kullanıcıları Piwigo üzerinde LDAP şifrelerini kullanabilir.';
@@ -48,4 +46,11 @@ $lang['New users when ldap auth is successfull'] = 'Yeni kullanıcılar - LDAP k
 $lang['Do you want admins to be advertised by mail in case of new users creation upon ldap login ?'] = 'Yöneticiler, LDAP oturumu açıldığında yeni kullanıcı yaratma durumundan eposta yoluyla bilgilendirilsin mi?';
 $lang['Do you allow new piwigo users to be created when users authenticate succesfully on the ldap ?'] = 'Yeni kullanıcılar LDAP ile başarılı kimlik doğrulaması yaptıklarında yaratılsın mı?';
 $lang['Do you want to send mail to the new users, like casual piwigo users receive ?'] = 'Yeni kullanıcılar diğer Piwigo kullanıcıları gibi eposta alsın mı?';
-?>
+$lang['Users branch'] = 'LDAP kullanıcılarının bulunması gereken şube (ör.: ou=users):';
+$lang['To get them out of these roles, they must be sorted of the ldap group and then role updated in the <a href="admin.php?page=user_list">piwigo admin</a>. If a group is mandatory as described in the <a href="admin.php?page=plugin-Ldap_Login-newusers">new piwigo users tab</a>, then they must also belong to the users group.'] = 'Onları bu rollerden çıkarmak için, ldap grubuna göre sıralanmaları ve ardından <a href="admin.php?page=user_list">piwigo admin</a>\'de rol güncellenmeleri gerekir. <a href="admin.php?page=plugin-Ldap_Login-newusers">Yeni piwigo kullanıcıları sekmesinde</a> açıklandığı gibi bir grup zorunluysa, bu grubun da users grubuna ait olması gerekir.';
+$lang['Search Ldap users ?'] = 'Ldap kullanıcıları aransın mı? Kullanıcılarınızı birkaç şubede veya OU\'da yaygınlaştırdıysanız, buna ihtiyacınız olacak. Bundan kaçınırsanız, bir ldap isteği kaydedersiniz. ldap ağacınız basitse buna ihtiyacınız olmayabilir (örneğin: uid=user,ou=people,dc=example,dc=com).';
+$lang['Search Ldap groups ?'] = 'Ldap kullanıcıları aransın mı? Gruplarınızı birkaç şubede veya OU\'da yaygınlaştırdıysanız, buna ihtiyacınız olacak. Bundan kaçınırsanız, bir ldap isteği kaydedersiniz. Eğer ldap ağacınız basitse buna ihtiyacınız olmayabilir (örneğin: cn=grupadı,ou=gruplar,dc=example,dc=com).';
+$lang['Ldap users'] = 'LDAP kullanıcıları';
+$lang['Ldap groups'] = 'LDAP grupları';
+$lang['Groups branch'] = 'LDAP gruplarının bulunması gereken dal (ör.: ou=gruplar):';
+$lang['If you create a <a href="admin.php?page=group_list">piwigo group</a> with the same name as an ldap one, all members of the ldap group will automatically join the piwigo group at their next authentication. This allows you to create <a href="admin.php?page=help&section=groups">specific right access management</a> (restrict access to a particaular album...).'] = 'Bir ldap grubuyla aynı ada sahip bir <a href="admin.php?page=group_list">piwigo grubu</a> oluşturursanız, ldap grubunun tüm üyeleri bir sonraki kimlik doğrulamalarında otomatik olarak piwigo grubuna katılır. Bu, <a href="admin.php?page=help&section=groups">belirli doğru erişim yönetimi</a> oluşturmanıza olanak tanır (belirli bir albüme erişimi kısıtlayın...). Ancak bu kullanıcıları devre dışı bırakmak için önce onları ldap gruplarından çıkarmanız gerekir, daha sonra piwigo grupları güncellenebilir.';
