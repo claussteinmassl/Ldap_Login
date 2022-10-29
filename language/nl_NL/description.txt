@@ -1,0 +1,1 @@
+toestaan dat piwigo gebruikers inloggen met hun ldap referenties (login, mail, of een ander attribuut gespecificeerd door piwigo admins + ldap wachtwoord). 
