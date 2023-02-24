@@ -16,19 +16,25 @@ function ld_table_exist() {
  * 
  * @return boolean 
  */
-	$query = ('select 1 from `piwigo_ldap_login_config` LIMIT 1');
-	$r = pwg_query($query);
-	if(is_object($r) !== TRUE)
-	{
-	   //table not found..
- 
-	   return false;
+	$r = NULL;
+	$result = true;
+	$query = 'select 1 from `piwigo_ldap_login_config` LIMIT 1';
+	error_log('[ld_table_exist] > ' . $query);
+	try {
+			error_log('[ld_table_exist] > Try query on database');
+			$r = pwg_query($query);
+			if (!is_object($r)) {
+					$result = false;
+			} else {
+					$result = true;
+			}
+	} catch(mysqli_sql_exception $mex) {
+			error_log('[ld_table_exist] > mysqli_sql_exception caught.');
+			error_log('[ld_table_exist] > ' . $mes);
+			$result = false;
 	}
-	else
-	{
-		return true;
-		//I can find it...
-	}
+	error_log('[ld_table_exist] > ' . $result);
+	return $result;
 }
 
 
