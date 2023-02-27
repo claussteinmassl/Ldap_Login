@@ -250,8 +250,8 @@
 		<li>
 			<label for="ld_server">{'Server mode:'|@translate}</label><br>
 				<select name="LD_SERVER" id="ld_server">
-				  <option value="ad" 		{if 'ad' == {$LD_SERVER}}selected{/if}>Active Directory</option>
-				  <option value="openldap"	{if 'openldap' == {$LD_SERVER}}selected{/if}>OpenLDAP</option>
+				  <option value="ad" 		{if isset($LD_SERVER) and 'ad' == {$LD_SERVER}}selected{/if}>Active Directory</option>
+				  <option value="openldap"	{if isset($LD_SERVER) and 'openldap' == {$LD_SERVER}}selected{/if}>OpenLDAP</option>
 				</select>
 		</li>
 		<i>{'If using MS AD, choose Active Directory, else choose OpenLDAP'|@translate}</i>		

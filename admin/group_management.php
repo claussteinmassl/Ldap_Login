@@ -37,14 +37,17 @@ else{
 ### Debug
 ###
  
-/*  if(isset($_POST['sync_action'])){
+/*
+if(isset($_POST['sync_action'])){
+	echo("DEBUG:<br>");
 	echo('<div style="margin-left:220px;"><pre>'); 
 	print_r($ldap->config);
 	print_r($ld_sync_data);
 	print_r($_POST);
 	echo("</pre></div>"); 
 	//die;
-}  */
+}
+*/
 
 ###
 ### Functions
@@ -301,6 +304,7 @@ if (isset($_POST['sync_action_submit']) || isset($_POST['sync_action_refresh']))
 	//Refresh button on page.
 	if (isset($_POST['sync_action_refresh'])){
 		$ld_sync_data = $ldap->ldap_get_groups($ldap->config['ld_group_basedn']);
+		$ldap->write_log("[ld_sync_data]> $ld_sync_data");
 		$ldap->config['ld_sync_data']=serialize($ld_sync_data);
 		$ldap->save_config();
 		
@@ -308,13 +312,14 @@ if (isset($_POST['sync_action_submit']) || isset($_POST['sync_action_refresh']))
 ###
 ### Debug
 ###
-	 
-		// if(isset($_POST['sync_action'])){
-			// echo('<div style="margin-left:220px;"><pre>'); 
-			// print_r($ld_sync_data);
-			// echo("</pre></div>"); 
+	 /*
+		if(isset($_POST['sync_action'])){
+			echo('<div style="margin-left:220px;"><pre>'); 
+			print_r($ld_sync_data);
+			echo("</pre></div>"); 
 			//die;
-		//}
+		}
+	*/
 	}
 
 }

@@ -546,7 +546,8 @@ class Ldap {
 			}
 		}
 		global $master;
-		return 	$master;
+		$this->write_log("[ldap_get_groups]> $master");
+		return $master;
 	} 	
 }
 ?>

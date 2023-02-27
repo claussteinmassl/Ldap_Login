@@ -21,7 +21,7 @@ function ld_table_exist() {
 	$query = 'select 1 from `piwigo_ldap_login_config` LIMIT 1';
 	error_log('[ld_table_exist] > ' . $query);
 	try {
-			error_log('[ld_table_exist] > Try query on database');
+			// error_log('[ld_table_exist] > Try query on database');
 			$r = pwg_query($query);
 			if (!is_object($r)) {
 					$result = false;

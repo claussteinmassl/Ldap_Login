@@ -25,7 +25,7 @@ td.content {
 	{'Removal of the group and users must be done manually! '|@translate}</p>
 	</fieldset>
 
-	<form method="post" action="{$SYNC_SETTINGS}" class="general">
+	<form method="post" action="{if isset($SYNC_SETTINGS)}{$SYNC_SETTINGS}{/if}" class="general">
 		<fieldset class="mainConf">
 		<br />
 			<legend>{'Sync settings'|@translate}</legend>
@@ -94,7 +94,8 @@ td.content {
 						<th>Path</th>
 					</tr>	
 				</thead>
-				<tbody>	
+				<tbody>
+					{if isset($LD_SYNC_DATA)}	
 					{foreach $LD_SYNC_DATA.0 as $key => $value}
 						<tr class="border_bottom">
 							<td>		
@@ -116,6 +117,7 @@ td.content {
 							</tr>		
 						{/foreach}
 					{/foreach}
+					{/if}
 				</tbody>
 			</table>
 			<br />
