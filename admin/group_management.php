@@ -25,7 +25,7 @@ $ldap = new Ldap();
 $ldap->load_config();
 
 
-//initialize ld_sync_data if exist
+// initialize ld_sync_data if exist
 if (isset($ldap->config['ld_sync_data'])){
 	$ld_sync_data = unserialize($ldap->config['ld_sync_data']); #retrieve from config file
 }
@@ -33,34 +33,20 @@ else{
 	$ld_sync_data = null;
 }
 
-###
-### Debug
-###
- 
-/*
-if(isset($_POST['sync_action'])){
-	echo("DEBUG:<br>");
-	echo('<div style="margin-left:220px;"><pre>'); 
-	print_r($ldap->config);
-	print_r($ld_sync_data);
-	print_r($_POST);
-	echo("</pre></div>"); 
-	//die;
-}
-*/
 
 ###
 ### Functions
-### 
+###
+
 function sync_create_group($groups){
-/**
- * Creates missing groups based on Group Management settings
- * 		$groups = 'piwigo_groupname'
- *
- *
- * @since 2.10.1
- *
- */
+    /**
+     * Creates missing groups based on Group Management settings
+     * 		$groups = 'piwigo_groupname'
+     *
+     *
+     * @since 2.10.1
+     *
+     */
 	global $page;
 	foreach($groups as $key => $value){
 		//CREATE GROUPS
@@ -174,47 +160,116 @@ function sync_usergroups_del($active){
 	unset($query);
 } 
 
-function sync_usergroups_add($active,$grouplist,$userlist){
-/**
- * Add new users in Piwigo to active grouplist if LDAP has same group/user
- * 	$active=active groups + name users
- *  $grouplist = name/id
- *  $userlist = name/id 
- *
- *
- * @since 2.10.1 
- *
- */
+function sync_usergroups_add($ldap, $active, $grouplist, $userlist){
+    /**
+     * Add new users in Piwigo to active grouplist if LDAP has same group/user
+     * 	$active=active groups + name users
+     *  $grouplist = name/id
+     *  $userlist = name/id
+     *
+     *
+     * @since 2.10.1
+     *
+     */
 	$inserts = array();
-	foreach ($active as $k1=>$v1){ //going through each active group
-			$page['infos'][] = l10n('group "%s" synced "%s" users',$k1,count($v1));																	  
-			foreach($v1 as $k2=>$v2){ //for every user in that group
-				if($v2['objectclass']=='inetOrgPerson'){ //only if it is an user						
+
+	foreach ($active as $group_cn => $group_data){ //going through each active group
+		$members = $group_data['member'];
+		$member_count = $group_data['memberCount'];
+		$count = 0;
+		$ldap->write_log("[sync_usergroups_add]> group_cn: " . $group_cn);
+		if(isset($members)) {
+			$ldap->write_log("[sync_usergroups_add]> members exist");
+			foreach($members as $member){ //for every user in that group
+				// member is a string like "uid=firstname.lastname,cn=users,dc=domain,dc=tld"
+				$uid_part = explode(",", $member);
+				$parts = explode("=", $uid_part[0]);
+				$uid = $parts[1];
+				$ldap->write_log("[sync_usergroups_add]> check " . $uid);
+				if(array_key_exists($uid, $userlist)){
 					$inserts[]=array(
-					  'group_id' => $grouplist[$k1], //corresponding id
-					  'user_id' => $userlist[$v2['cn']], //corresponding id
-					  );								
+						'user_id' => $userlist[$uid], //corresponding id
+						'group_id' => $grouplist[$group_cn], //corresponding id
+					);
+					$ldap->write_log("[sync_usergroups_add]> inserts: " . json_encode($inserts));
+					$count++;
 				}
 			}
-		
+		}
+		$page['infos'][] = l10n('group "%s" synced "%s" user(s)',$group_cn,$count);																	  
 	}
+
 	mass_inserts(
 	USER_GROUP_TABLE,
-	array('group_id', 'user_id'),
+	array('user_id', 'group_id'),
 	$inserts,
 	array('ignore'=>true)
 	);
-} 
-  
-function sync_ldap(){
-	
-/**
-* Removes users not in LDAP/Minimum group
-*
-*
-* @since 2.10.1
-*
-*/
+}
+
+
+function sync_group_membership($ldap, $ld_sync_data=null) {
+    /**
+     * Sync the group membership of all piwigo users from ldap to piwigo.
+     */
+    if(!isset($ldap)) {
+        return false;
+    }
+    if(!isset($ld_sync_data)){
+        $ld_sync_data = $ldap->ldap_get_groups($ldap->config['ld_group_basedn']);
+        $ldap->config['ld_sync_data']=serialize($ld_sync_data);
+    }
+
+    $grouplist = sync_get_groups(); //get piwigo groups
+    $userlist = sync_get_users(); //get piwigo users
+
+    foreach ($ld_sync_data[0] as $k=>$v){
+        if($v['active']){
+            $activegrouplist['cn'][]=$k; //get all active ldap groups
+            $activegrouplist['id'][]=$grouplist[$k]; //get id's from these groups
+        }
+    }
+
+    sync_usergroups_del($activegrouplist['id']); //delete users from activegroups
+
+    // clear group mapping of all ldap users
+    $ld_user_attr = $ldap->config['ld_user_attr'];
+    $users_ldap = $ldap->getUsers(null, $ld_user_attr);
+    if($users_ldap){
+        $uids = array();
+        foreach ($users_ldap as $ldap_user) {
+            $uids[] = ldap_get_user_id($ldap_user);
+        }
+
+        $query = '
+            DELETE
+            FROM '.USER_GROUP_TABLE.'
+            WHERE user_id IN ('.implode(",", $uids).')
+            ;';
+        //$ldap->write_log("[sync_group_membership] clear group mapping query: " . $query);
+        pwg_query($query);
+        unset($query);
+    }
+
+    //exclude inactive groups from ld_sync_data
+    $ld_sync_data_active = array_intersect_key($ld_sync_data[0], array_flip($activegrouplist['cn']));
+
+    //add users
+    sync_usergroups_add($ldap, $ld_sync_data_active,$grouplist,$userlist);
+
+    $page['infos'][] = l10n('Users were synced with the group(s).');
+    invalidate_user_cache();
+    return true;
+}
+
+function sync_ldap() {
+    /**
+    * Removes users not in LDAP/Minimum group
+    *
+    *
+    * @since 2.10.1
+    *
+    */
 
 	$users = sync_get_users();	
 	global $ldap;
@@ -243,103 +298,115 @@ function sync_ldap(){
 ### POST (submit/load page)
 ###
 
+// only run this, if the file is not included, but run directly
+if (!debug_backtrace()) {
 
-// Save LDAP configuration when submitted
-if (isset($_POST['sync_action_submit']) || isset($_POST['sync_action_refresh'])){
-	$ldap->ldap_conn();
-	if(isset($_POST['sync_action_submit'])) {
-	
-		//activate groups.
-		if(!($ld_sync_data==null)){
-			foreach($ld_sync_data[0] as $key=>$value){
-				if(isset($_POST['sync']['groups'][$key])) {
-					$ld_sync_data[0][$key]['active']=True; 
-				} 
-				else {
-					$ld_sync_data[0][$key]['active']=False; 
-				}
-			}
-			
-		}
-		//save to database for activation.
-		$ldap->config['ld_group_basedn']=$_POST['ld_group_basedn'];
-		$ldap->save_config();			
-		
-		
-		if(isset($_POST['sync']['item']['groups'])){
-			if($_POST['sync']['item']['groups'] ==1){
-				sync_create_group($_POST['sync']['groups']);
-			}
-		}
-		
-		if(isset($_POST['sync']['item']['users'])){
-			if($_POST['sync']['item']['users'] ==1){
-				$grouplist=sync_get_groups(); //get piwigo groups
-				$userlist=sync_get_users(); //get piwigo users
-				foreach ($ld_sync_data[0] as $k=>$v){
-					if($v['active']){
-						$activegrouplist['cn'][]=$k; //get all active ldap groups
-						$activegrouplist['id'][]=$grouplist[$k]; //get id's from these groups
-					}
-				}
-				sync_usergroups_del($activegrouplist['id']); //delete users from activegroups
-				//exclude inactive groups from ld_sync_data
-				$ld_sync_data_active = array_intersect_key($ld_sync_data[1], array_flip($activegrouplist['cn'])); 
-				//add users 
-				sync_usergroups_add($ld_sync_data_active,$grouplist,$userlist);
+    // Save LDAP configuration when submitted
+    if (isset($_POST['sync_action_submit']) || isset($_POST['sync_action_refresh'])){
+        $ldap->ldap_conn();
+        if(isset($_POST['sync_action_submit'])) {
 
-				$page['infos'][] = l10n('Users were synced with the group(s).');
-				invalidate_user_cache();
-			}
-		}
-		
-		if(isset($_POST['sync']['item']['ldap'])){
-			if($_POST['sync']['item']['ldap'] ==1){
-				//what goes here?
-				sync_ldap();		
-			}
-		}
-	}
+            //activate groups.
+            if(!($ld_sync_data==null)){
+                foreach($ld_sync_data[0] as $key=>$value){
+                    if(isset($_POST['sync']['groups'][$key])) {
+                        $ld_sync_data[0][$key]['active']=True;
+                    }
+                    else {
+                        $ld_sync_data[0][$key]['active']=False;
+                    }
+                }
 
-	//Refresh button on page.
-	if (isset($_POST['sync_action_refresh'])){
-		$ld_sync_data = $ldap->ldap_get_groups($ldap->config['ld_group_basedn']);
-		$ldap->write_log("[ld_sync_data]> $ld_sync_data");
-		$ldap->config['ld_sync_data']=serialize($ld_sync_data);
-		$ldap->save_config();
-		
+            }
+            //save to database for activation.
+            $ldap->config['ld_group_basedn']=$_POST['ld_group_basedn'];
+            $ldap->config['ld_sync_data']=serialize($ld_sync_data);
+            $ldap->save_config();
 
-###
-### Debug
-###
-	 /*
-		if(isset($_POST['sync_action'])){
-			echo('<div style="margin-left:220px;"><pre>'); 
-			print_r($ld_sync_data);
-			echo("</pre></div>"); 
-			//die;
-		}
-	*/
-	}
+
+            if(isset($_POST['sync']['item']['groups'])){
+                if($_POST['sync']['item']['groups'] ==1){
+                    sync_create_group($_POST['sync']['groups']);
+                }
+            }
+
+            if(isset($_POST['sync']['item']['users'])){
+                if($_POST['sync']['item']['users'] ==1){
+                    /*
+                    $grouplist = sync_get_groups(); //get piwigo groups
+                    $userlist = sync_get_users(); //get piwigo users
+
+                    foreach ($ld_sync_data[0] as $k=>$v){
+                        if($v['active']){
+                            $activegrouplist['cn'][]=$k; //get all active ldap groups
+                            $activegrouplist['id'][]=$grouplist[$k]; //get id's from these groups
+                        }
+                    }
+
+                    sync_usergroups_del($activegrouplist['id']); //delete users from activegroups
+
+                    //exclude inactive groups from ld_sync_data
+                    $ld_sync_data_active = array_intersect_key($ld_sync_data[0], array_flip($activegrouplist['cn']));
+
+                    //add users
+                    sync_usergroups_add($ldap, $ld_sync_data_active,$grouplist,$userlist);
+
+                    $page['infos'][] = l10n('Users were synced with the group(s).');
+                    invalidate_user_cache();
+                    */
+                    sync_group_membership($ldap, $ld_sync_data);
+                }
+            }
+
+            if(isset($_POST['sync']['item']['ldap'])){
+                if($_POST['sync']['item']['ldap'] ==1){
+                    //what goes here?
+                    sync_ldap();
+                }
+            }
+        }
+
+        //Refresh button on page.
+        if (isset($_POST['sync_action_refresh'])){
+            $ld_sync_data = $ldap->ldap_get_groups($ldap->config['ld_group_basedn']);
+            $ldap->config['ld_sync_data']=serialize($ld_sync_data);
+            $ldap->save_config();
+
+
+    ###
+    ### Debug
+    ###
+         /*
+            if(isset($_POST['sync_action'])){
+                echo('<div style="margin-left:220px;"><pre>');
+                print_r($ld_sync_data);
+                echo("</pre></div>");
+                //die;
+            }
+        */
+        }
+
+    }
+
+
+
+    ###
+    ### TEMPLATE
+    ###
+
+    global $template;
+    $template->assign('LD_SYNC_DATA',$ld_sync_data);
+    $template->assign('LD_GROUP_BASEDN',$ldap->config['ld_group_basedn']);
+
+    $template->set_filenames( array('plugin_admin_content' => dirname(__FILE__).'/group_management.tpl') );
+    $template->assign(
+      array(
+        'PLUGIN_ACTION' => get_root_url().'admin.php?page=plugin-Ldap_Login-group_management',
+        'PLUGIN_CHECK' => get_root_url().'admin.php?page=plugin-Ldap_Login-group_management',
+        ));
+    $template->assign_var_from_handle( 'ADMIN_CONTENT', 'plugin_admin_content');
 
 }
 
-
-
-###
-### TEMPLATE
-###
-
-global $template;
-$template->assign('LD_SYNC_DATA',$ld_sync_data);
-$template->assign('LD_GROUP_BASEDN',$ldap->config['ld_group_basedn']);
-
-$template->set_filenames( array('plugin_admin_content' => dirname(__FILE__).'/group_management.tpl') );
-$template->assign(
-  array(
-    'PLUGIN_ACTION' => get_root_url().'admin.php?page=plugin-Ldap_Login-group_management',
-    'PLUGIN_CHECK' => get_root_url().'admin.php?page=plugin-Ldap_Login-group_management',
-    ));
-$template->assign_var_from_handle( 'ADMIN_CONTENT', 'plugin_admin_content');
 
 ?>
