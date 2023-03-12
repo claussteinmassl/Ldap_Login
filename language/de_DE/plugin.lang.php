@@ -27,7 +27,7 @@ $lang['Bind DN, field in full ldap style'] = 'Bind DN im LDAP-Style (z.B.: cn=ad
 $lang['Do you want admins to be advertised by mail in case of new users creation upon ldap login ?'] = 'Möchtest du das die Admins per Mail benachrichtigt werden, wenn neue Nutzer über das LDAP Login angelegt werden.';
 $lang['Do you want to send mail to the new users, like casual piwigo users receive ?'] = 'Möchtest du die Mails so an die neuen Nutzern senden, wie sie normale Piwigo Benutzer bekommen?';
 $lang['Ldap connection credentials'] = 'LDAP-Verbindungsreferenzen';
-$lang['Username'] = 'Bitte LDAP Benutzername';
+$lang['Username'] = 'Benutzername';
 $lang['New users when ldap auth is successfull'] = 'Neuer Benutzer, wenn LDAP Auth erfolgreich war';
 $lang['Warning: LDAP Extension missing.'] = 'Warnung: LDAP Erweiterung fehlt.';
 $lang['Secure connexion'] = 'Sichere Verbindung (ldaps)';
