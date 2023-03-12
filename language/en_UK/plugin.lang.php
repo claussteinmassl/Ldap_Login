@@ -53,8 +53,8 @@ $lang['Bind password'] = 'Bind password';
 
 // test and save
 
-$lang['Username'] = 'Your LDAP username';
-$lang['Your password'] = 'Your LDAP password';
+$lang['Username'] = 'Username';
+$lang['Your password'] = 'Password';
 $lang['Ldap_Login Test'] = 'Ldap_Login Test';
 $lang['You must save the settings with the Save button just up there before testing here.'] = 'You need to save settings using the Save button above, before testing them.';
 $lang['Save'] = 'Save';
