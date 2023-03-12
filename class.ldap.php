@@ -275,6 +275,39 @@ class Ldap {
 			}
 	}
  */
+	public function ldap_get_user_status($user_dn): bool
+	{
+		/**
+		 * Check if the user is active or inactive.
+		 *
+		 * Inspect the "shadowexpire" attribute of the given user dn. If it's set to -1, the user is active.
+		 * If the user has been instantly disabled, the attribute is set to 1.
+		 * If the account is about to expire in the future, the attribute is set to a date by the number of days
+		 * since January 1, 1970.
+		 *
+		 * @param string $user_dn The user that shall be inspected.
+		 *
+		 * @returns bool True, if the user is active (or not yet expired), False, if the account has been disabled.
+		 */
+		$this->write_log("[function]> ldap_get_user_status");
+		$sr = @ldap_read($this->cnx, $user_dn, "(objectclass=*)", array('shadowexpire'));
+		$entry = @ldap_get_entries($this->cnx, $sr);
+		$this->write_log("[ldap_get_user_status]> entries: " . json_encode($entry));
+
+		if (!empty($entry[0]['shadowexpire'])) {
+			// if the value is "-1", the account is active
+			// if the value is anything else, it's the days after January 1, 1970 and we need to calculate if it's still valid
+			$shadowexpire = intval($entry[0]['shadowexpire'][0]);
+			$current_time = time() / 86400;
+			if ($shadowexpire == -1 || ($shadowexpire > 0 && $shadowexpire > $current_time)) {
+				$this->write_log("[ldap_get_user_status]> user is active, $user_dn");
+				return true;
+			}
+		}
+		$this->write_log("[ldap_get_user_status]> user is inactive, $user_dn");
+		return false;
+	}
+
 	public function ldap_get_email($user_dn){
 		$this->write_log("[function]> ldap_get_email");
 		$sr=@ldap_read($this->cnx, $user_dn, "(objectclass=*)", array('mail'));
@@ -390,8 +423,25 @@ class Ldap {
 		
 	}
 
+	function getUidValues($array) {
+		$uids = array();
+		foreach ($array as $item) {
+			if (is_array($item)) {
+				$uids = array_merge($uids, $this->getUidValues($item));
+			} else {
+				if (strpos($item, 'uid=') !== false) {
+					preg_match('/uid=([^,]+)/', $item, $matches);
+					$uids[] = $matches[1];
+				}
+			}
+		}
+		return $uids;
+	}
+
 	function getUsers($groupDN=null, $attrib='cn'){
-    	$ld_basedn=$this->config['ld_basedn'];
+		$ldap_users=array();
+
+		$ld_basedn=$this->config['ld_basedn'];
     	if(!$this->make_ldap_bind_as($this->cnx,$this->config['ld_binddn'],$this->config['ld_bindpw'])){
 			return false;
     	}
@@ -409,7 +459,6 @@ class Ldap {
 			$search = ldap_search($this->cnx, $ld_basedn, $search_filter,array($attrib),0,0,5); //search for group
 			$entries = ldap_get_entries($this->cnx,$search); //get users
 			unset($entries['count']);
-			$ldap_users=array();
 			foreach($entries as $k=>$v){
 				$ldap_users[]=$v[$attrib][0];
 			}
@@ -420,6 +469,12 @@ class Ldap {
         	$this->write_log('[getUsers] -> ldap_search($this->cnx, ' . $ld_basedn . ', ' . $search_filter . ',array("member"),0,0,5); ');
         	if($search = ldap_search($this->cnx,$ld_basedn,$search_filter,array('member'),0,0,5)){ //search for group
 				$entries = ldap_get_entries($this->cnx,$search); //get users
+
+				if($entries) {
+					$ldap_users = $this->getUidValues($entries);
+				}
+
+				/*
 				unset($entries[0][0]);
            		unset($entries[0][1]);
           		unset($entries[0]['count']);
@@ -448,7 +503,8 @@ class Ldap {
 					foreach($entries[0]['member'] as $k=>$v){
 						$ldap_users[]=ldap_explode_dn($v,1)[0];
 					}
-				}				
+				}
+				*/
 			return $ldap_users;
             }
         }	
@@ -483,11 +539,35 @@ class Ldap {
 	public function ldap_get_groups($ld_prim_group){
 		$master = array();
 		if(!$this->make_ldap_bind_as($this->cnx,$this->config['ld_binddn'],$this->config['ld_bindpw'])){
+			$this->write_log("[ldap_get_groups]> bind failed");
 			return false;
 		}
-		function ldap_get_group_data($group,$con,$depth,$path,$parent) {
-			if ($parentData=ldap_read($con,$group, "(|(objectclass=person)(objectclass=groupOfNames))", array('cn','dn','member','objectclass'))){
-				$entry = ldap_get_entries($con, $parentData); #get all info from query
+		// initialize ld_sync_data if exist
+		if (isset($this->config['ld_sync_data'])){
+			$ld_sync_data = unserialize($this->config['ld_sync_data']); #retrieve from config file
+		} else {
+			$ld_sync_data = null;
+		}
+
+		function ldap_get_parent_array($array, $search_dn) {
+			/*
+			 * Take an array of ldap groups and users and return the parent array for the given dn.
+			 */
+			foreach ($array as $parent_array) {
+				if(key_exists("dn", $parent_array)) {
+					if($parent_array["dn"] === $search_dn) {
+						return $parent_array;
+					}
+				}
+			}
+			return null; // Return null if search_dn is not found in any subarray
+		}
+
+		function ldap_get_group_data($group,$con,$depth,$path,$parent, $ld_sync_data=null) {
+			//$user_query = "(|(objectclass=person)(objectclass=groupOfNames))";
+			//if ($parentData=ldap_read($con,$group, "(|(objectclass=person)(objectclass=groupOfNames))", array('cn','dn','member','objectclass'))){
+			if ($parentData=ldap_read($con,$group, "(|(objectclass=posixAccount)(objectclass=posixGroup))", array('cn','dn','member','objectclass'))){
+					$entry = ldap_get_entries($con, $parentData); #get all info from query
 				if($entry['count']>0){ //only if object person / group, will alway return 1 array!
 					$obj_group['objectclass']=$entry[0]['objectclass'][0];
 					$obj_group['cn']=$entry[0]['cn'][0];
@@ -497,8 +577,24 @@ class Ldap {
 					$obj_group['member']=$entry[0]['member'] ?? null; //if entry has members than copy to object.
 					$obj_group['depth']=$depth;
 					$obj_group['path']=$path;
-					$parent['dn'] ? $obj_group['parentDN']=	$parent['dn']:null;	//create parentDN if parent['dn'] exist		
-					$parent['cn'] ? $obj_group['parentCN']=	$parent['cn']:null;			
+					if(isset($parent)) {
+						$parent['dn'] ? $obj_group['parentDN']=	$parent['dn']:null;	//create parentDN if parent['dn'] exist		
+						$parent['cn'] ? $obj_group['parentCN']=	$parent['cn']:null;				
+					} else {
+						$obj_group['parentDN'] = null;
+						$obj_group['parentCN'] = null;
+					}
+
+					// set "active" setting from existing config
+					if(isset($ld_sync_data)) {
+						$parent_array = ldap_get_parent_array($ld_sync_data[0], $group);
+						if ($parent_array !== null) {
+							if(key_exists("active", $parent_array)) {
+								$obj_group["active"] = $parent_array["active"];
+							}
+						}
+
+					}
 
 					global $master;
 
@@ -532,21 +628,24 @@ class Ldap {
 			
 			else { 
 				#invalid primary group
+				$this->write_log("[ldap_get_groups]> invalid primary group");
 				return null;
 			}
 		}
 		
-		$this->write_log("[function]> ldap_get_groups");
+		// $this->write_log("[function]> ldap_get_groups");
 		$sr=ldap_search($this->cnx, $ld_prim_group, "(!(objectclass=organizationalUnit))", array('dn'));
+		//$this->write_log("[ldap_get_groups]> ldap_search: $sr");
 		$info = ldap_get_entries($this->cnx, $sr);
+		//$this->write_log("[ldap_get_groups]> info: " . json_encode($info));
 		unset($info['count']);	
 		foreach($info as $k=>$v){
-		if (ldap_get_group_data($v['dn'],$this->cnx,$depth=0,$path="",$parent=null)){
+		if (ldap_get_group_data($v['dn'],$this->cnx,$depth=0,$path="",$parent=null, $ld_sync_data)){
 				
 			}
 		}
 		global $master;
-		$this->write_log("[ldap_get_groups]> $master");
+		// $this->write_log("[ldap_get_groups]> result: " . json_encode($master));
 		return $master;
 	} 	
 }
