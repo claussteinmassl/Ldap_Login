@@ -99,7 +99,8 @@ td.content {
 					{foreach $LD_SYNC_DATA.0 as $key => $value}
 						<tr class="border_bottom">
 							<td>		
-								<input type="checkbox" id="ld_sync_data_{$value.cn}" value=1 name="sync[groups][{$value.cn}]"  {if $value.active == True} checked="checked"{/if} />
+								<input type="checkbox" id="ld_sync_data_{$value.cn}" value=1 name="sync[groups][{$value.cn}]"  {if isset($value.active) and $value.active == True} checked="checked"{/if} />
+								{* <input type="checkbox" id="ld_sync_data_{$value.cn}" value=1 name="sync[groups][{$value.cn}]"/> *}
 							</td>
 							<td>{$value.cn}</td>
 							</td>
@@ -107,6 +108,7 @@ td.content {
 							<td>&nbsp;</td>
 							<td>&nbsp;</td>
 						</tr>
+						{*
 						{foreach $LD_SYNC_DATA.1.$key as $key2 => $value2}
 							<tr >		
 								<td class="content" >&nbsp;</td>
@@ -116,6 +118,7 @@ td.content {
 								<td class="content">{$value2.path}</td>
 							</tr>		
 						{/foreach}
+						*}
 					{/foreach}
 					{/if}
 				</tbody>
