@@ -17,6 +17,7 @@ define('LDAP_LOGIN_ADMIN',   get_root_url() . 'admin.php?page=plugin-' . LDAP_LO
 
 include_once(LDAP_LOGIN_PATH.'/class.ldap.php');
 include_once(LDAP_LOGIN_PATH.'/functions_sql.inc.php');
+include_once(LDAP_LOGIN_PATH.'/common_func.inc.php');
 
 // +-----------------------------------------------------------------------+
 // | Event handlers                                                        |
@@ -126,33 +127,41 @@ function login($success, $username, $password, $remember_me){
  * @param boolean $remember_me
  * @return boolean
  */
- 
+
+	if ($success===true)
+	{
+		return true;
+	}
+
+	// we force the session table to be clean
+	pwg_session_gc();
+
 	//force users to lowercase name, or else duplicates will be made, like user,User,uSer etc.
 	$username=strtolower($username);
 	global $conf;
 	if(strlen(trim($username)) == 0 || strlen(trim($password)) == 0){
-			trigger_notify('login_failure', stripslashes($username));
-			return false; // wrong user/password or no group access
+		trigger_notify('login_failure', stripslashes($username));
+		return false; // wrong user/password or no group access
 	}
 	
-	$obj = new Ldap();
-	$obj->load_config();
-	$obj->write_log("New LDAP Instance");
-	$obj->write_log("[function]> login");
-	$obj->ldap_conn() or die("Unable to connect LDAP server : ".$obj->getErrorString());
+	$ldap = new Ldap();
+	$ldap->load_config();
+	$ldap->write_log("New LDAP Instance");
+	$ldap->write_log("[function]> login");
+	$ldap->ldap_conn() or die("Unable to connect LDAP server : ".$ldap->getErrorString());
 
-	$user_dn = $obj->ldap_search_dn($username);	// retrieve the userdn
+	$user_dn = $ldap->ldap_search_dn($username);	// retrieve the userdn
 
 	// If we have userdn, attempt to login an check user's group access via LDAP
-	if (!($user_dn && $obj->ldap_bind_as($user_dn,$password) &&
-		$obj->check_ldap_group_membership($user_dn, $username))) {
+	if (!($user_dn && $ldap->ldap_bind_as($user_dn,$password) &&
+		$ldap->check_ldap_group_membership($user_dn, $username))) {
 			trigger_notify('login_failure', stripslashes($username));
-			$obj->write_log("[login]> wrong u/p or no group access");
+			$ldap->write_log("[login]> wrong u/p or no group access");
 			return false; // wrong user/password or no group access
 	}
-	
 
-	
+	/*
+
 	// search user in piwigo database
 	$query = 'SELECT '.$conf['user_fields']['id'].' AS id FROM '.USERS_TABLE.' WHERE '.$conf['user_fields']['username'].' = \''.pwg_db_real_escape_string($username).'\' ;';
 	$row = pwg_db_fetch_assoc(pwg_query($query));
@@ -160,29 +169,29 @@ function login($success, $username, $password, $remember_me){
 	// if query is not empty, it means everything is ok and we can continue, auth is done !
   	if (!empty($row['id'])) {
 		
-		if ($obj->config['ld_group_webmaster_active'] || $obj->config['ld_group_admin_active']) {
+		if ($ldap->config['ld_group_webmaster_active'] || $ldap->config['ld_group_admin_active']) {
 			//check admin status
 			$uid = pwg_db_real_escape_string($row['id']);
 			$group_query = 'SELECT user_id, status FROM piwigo_user_infos  WHERE `piwigo_user_infos`.`user_id` = ' . $uid . ';';
 			$pwg_status = pwg_db_fetch_assoc(pwg_query($group_query))['status']; //status in Piwigo
 			$webmaster = null; // or True or False
 			$admin = null;  // or True or False
-			$obj->write_log("[login]> info: $username, status:$pwg_status");
+			$ldap->write_log("[login]> info: $username, status:$pwg_status");
 			
 			//enable upgrade / downgrade from webmaster
-			if ($obj->config['ld_group_webmaster_active']==True) {
-				$group_webm = $obj->config['ld_group_webmaster'];
+			if ($ldap->config['ld_group_webmaster_active']==True) {
+				$group_webm = $ldap->config['ld_group_webmaster'];
 				//is user webmaster?
-				$webmaster = $obj->check_ldap_group_membership($user_dn, $username,$group_webm); //is webmaster in LDAP?
+				$webmaster = $ldap->check_ldap_group_membership($user_dn, $username,$group_webm); //is webmaster in LDAP?
 			}
 			
 			//enable upgrade / downgrade from admin
-			if ($obj->config['ld_group_admin_active']==True) {
-				$group_adm = $obj->config['ld_group_admin'];
+			if ($ldap->config['ld_group_admin_active']==True) {
+				$group_adm = $ldap->config['ld_group_admin'];
 				//is user admin?
-				$admin = $obj->check_ldap_group_membership($user_dn, $username,$group_adm); //is admin in LDAP?
+				$admin = $ldap->check_ldap_group_membership($user_dn, $username,$group_adm); //is admin in LDAP?
 			}
-			$obj->write_log("[login]> Admin_active:" . $obj->config['ld_group_admin_active'] ." is_admin:$admin , WebmasterActive:" . $obj->config['ld_group_webmaster_active'] . " is_webmaster:$webmaster");
+			$ldap->write_log("[login]> Admin_active:" . $ldap->config['ld_group_admin_active'] ." is_admin:$admin , WebmasterActive:" . $ldap->config['ld_group_webmaster_active'] . " is_webmaster:$webmaster");
 			if (is_null($webmaster) && is_null($admin)) {}//ignore 
 			elseif($webmaster==false && $admin==true) {$status='admin';} //  admin | when NOT webmaster and admin.
 			elseif($webmaster==true && (!is_null($admin))) {$status='webmaster';} // webmaster | when webmaster and whatever value for admin.
@@ -199,12 +208,12 @@ function login($success, $username, $password, $remember_me){
 			}
 			
 			if(isset($status)){
-				$obj->write_log("[login]> Target status $status");
+				$ldap->write_log("[login]> Target status $status");
 				if ($status!=$pwg_status) {
 					$query = '
 						UPDATE `piwigo_user_infos` SET `status` = "'. $status . '" WHERE `piwigo_user_infos`.`user_id` = ' . $uid . ';';
 					pwg_query($query);
-					$obj->write_log("[login]> Changed $username with id " . $row['id'] . " from ".$pwg_status. " to " . $status);
+					$ldap->write_log("[login]> Changed $username with id " . $row['id'] . " from ".$pwg_status. " to " . $status);
 					include_once(PHPWG_ROOT_PATH.'admin/include/functions.php');
 					invalidate_user_cache();
 				}
@@ -213,26 +222,27 @@ function login($success, $username, $password, $remember_me){
 		
   		log_user($row['id'], $remember_me);
   		trigger_notify('login_success', stripslashes($username));
-		$obj->write_log("[login]> User " . $username . " found in SQL DB and login success");
+		$ldap->write_log("[login]> User " . $username . " found in SQL DB and login success");
   		return true;
   	}
+
   	
   	// if query is empty but ldap auth is done we can create a piwigo user if it's said so !
   	else {
-		$obj->write_log("[login]> User found in LDAP but not in SQL");
+		$ldap->write_log("[login]> User found in LDAP but not in SQL");
 		// this is where we check we are allowed to create new users upon that.
-		if ($obj->config['ld_allow_newusers']) {
-			$obj->write_log("[login]> Creating new user and store in SQL");
+		if ($ldap->config['ld_allow_newusers']) {
+			$ldap->write_log("[login]> Creating new user and store in SQL");
 			$mail=null;
-			if($obj->config['ld_use_mail']){
+			if($ldap->config['ld_use_mail']){
 				// retrieve LDAP e-mail address and create a new user
-				$mail = $obj->ldap_get_email($user_dn);
+				$mail = $ldap->ldap_get_email($user_dn);
 			}
 			$errors=[];
 			$new_id = register_user($username,random_password(8),$mail,true,$errors);
 			if(count($errors) > 0) {
 				foreach ($errors as &$e){
-					$obj->write_log("[login]> ".$e, 'ERROR');
+					$ldap->write_log("[login]> ".$e, 'ERROR');
 				}
 				return false;
 			}
@@ -241,7 +251,7 @@ function login($success, $username, $password, $remember_me){
 			trigger_notify('login_success', stripslashes($username));
 
 			// in case the e-mail address is empty, redirect to profile page
-			if ($obj->config['ld_allow_profile']) {
+			if ($ldap->config['ld_allow_profile']) {
 				redirect('profile.php');
 			}
 			else {
@@ -252,10 +262,29 @@ function login($success, $username, $password, $remember_me){
 		// else : this is the normal behavior ! user is not created.
 		else {
 			trigger_notify('login_failure', stripslashes($username));
-			$obj->write_log("[login]> Not allowed to create user (ld_allow_newusers=false)");
+			$ldap->write_log("[login]> Not allowed to create user (ld_allow_newusers=false)");
 			return false;
 		}
   	}
+	*/
+	
+	$uid = ldap_new_piwigo_user($ldap, $username);
+
+	if(!is_null($uid)){ // the user exists or has been created
+		// update user status
+		ldap_set_user_status($ldap, $username);
+
+		// login
+		log_user($uid, $remember_me);
+		trigger_notify('login_success', stripslashes($username));
+		return true;
+
+	} else { // the user does not exists or could not be created
+		// fail login
+		trigger_notify('login_failure', stripslashes($username));
+		$ldap->write_log("[login]> Failed to login $username)");
+		return false;
+	}
 }
 
 
