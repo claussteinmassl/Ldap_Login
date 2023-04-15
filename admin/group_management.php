@@ -38,6 +38,7 @@ else{
 ### Functions
 ###
 
+if (!function_exists('sync_create_group')) {
 function sync_create_group($groups){
     /**
      * Creates missing groups based on Group Management settings
@@ -90,7 +91,9 @@ function sync_create_group($groups){
 		}
 	}			
 }
+}
 
+if (!function_exists('sync_get_groups')) {
 function sync_get_groups(){
 /**
  * Get all piwigo groups
@@ -112,7 +115,9 @@ function sync_get_groups(){
 	unset($query);
 	return $grouplist;
 }
+}
 
+if (!function_exists('sync_get_users')) {
 function sync_get_users($q2a=False){
 /**
  * Get all piwigo users
@@ -140,7 +145,9 @@ function sync_get_users($q2a=False){
 		return $result;
 	}	
 }
-  
+}
+
+if (!function_exists('sync_usergroups_del')) {
 function sync_usergroups_del($active){
 /**
  * Delete usergroups data for active groups in group management
@@ -158,8 +165,10 @@ function sync_usergroups_del($active){
 	;';
 	pwg_query($query);
 	unset($query);
-} 
+}
+}
 
+if (!function_exists('sync_usergroups_add')) {
 function sync_usergroups_add($ldap, $active, $grouplist, $userlist){
     /**
      * Add new users in Piwigo to active grouplist if LDAP has same group/user
@@ -206,8 +215,9 @@ function sync_usergroups_add($ldap, $active, $grouplist, $userlist){
 	array('ignore'=>true)
 	);
 }
+}
 
-
+if (!function_exists('sync_group_membership')) {
 function sync_group_membership($ldap, $ld_sync_data=null) {
     /**
      * Sync the group membership of all piwigo users from ldap to piwigo.
@@ -261,7 +271,9 @@ function sync_group_membership($ldap, $ld_sync_data=null) {
     invalidate_user_cache();
     return true;
 }
+}
 
+if (!function_exists('sync_ldap')) {
 function sync_ldap() {
     /**
     * Removes users not in LDAP/Minimum group
@@ -292,14 +304,16 @@ function sync_ldap() {
 	//delete_user .\piwigo\admin\include\functions.php
 	}
 }
-
+}
  
 ###
 ### POST (submit/load page)
 ###
 
 // only run this, if the file is not included, but run directly
-if (!debug_backtrace()) {
+//if (!debug_backtrace()) {
+global $page;
+if(isset($page['tab']) && $page['tab'] == 'group_management') {
 
     // Save LDAP configuration when submitted
     if (isset($_POST['sync_action_submit']) || isset($_POST['sync_action_refresh'])){
